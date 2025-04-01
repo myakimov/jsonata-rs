@@ -6,7 +6,7 @@ use bumpalo::Bump;
 mod datetime;
 mod errors;
 mod evaluator;
-mod parser;
+pub mod parser;
 
 pub use errors::Error;
 pub use evaluator::functions::FunctionContext;
@@ -21,19 +21,28 @@ pub struct JsonAta<'a> {
     ast: Ast,
     frame: Frame<'a>,
     arena: &'a Bump,
+    names: Vec<Ast>
 }
 
 impl<'a> JsonAta<'a> {
     pub fn new(expr: &str, arena: &'a Bump) -> Result<JsonAta<'a>> {
+
+        let (ast , names)  = parser::parse(expr)?;
+
         Ok(Self {
-            ast: parser::parse(expr)?,
+            ast,
             frame: Frame::new(),
             arena,
+            names
         })
     }
 
     pub fn ast(&self) -> &Ast {
         &self.ast
+    }
+
+    pub fn names(&self) -> &Vec<Ast> {
+        &self.names
     }
 
     pub fn assign_var(&self, name: &str, value: &'a Value<'a>) {
@@ -102,7 +111,7 @@ impl<'a> JsonAta<'a> {
             Some(input) => {
                 let input_ast = parser::parse(input)?;
                 let evaluator = Evaluator::new(None, self.arena, None, None);
-                evaluator.evaluate(&input_ast, Value::undefined(), &Frame::new())?
+                evaluator.evaluate(&input_ast.0, Value::undefined(), &Frame::new())?
             }
             None => Value::undefined(),
         };
@@ -177,7 +186,7 @@ impl<'a> JsonAta<'a> {
         let chain_ast = Some(parser::parse(
             "function($f, $g) { function($x){ $g($f($x)) } }",
         )?);
-        let evaluator = Evaluator::new(chain_ast, self.arena, max_depth, time_limit);
+        let evaluator = Evaluator::new(Some(chain_ast.unwrap().0), self.arena, max_depth, time_limit);
         evaluator.evaluate(&self.ast, input, &self.frame)
     }
 }

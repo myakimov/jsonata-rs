@@ -14,6 +14,7 @@ use tokenizer::*;
 pub struct Parser<'a> {
     pub tokenizer: Tokenizer<'a>,
     pub token: Token,
+    names: Vec<Ast>
 }
 
 impl<'a> Parser<'a> {
@@ -22,11 +23,16 @@ impl<'a> Parser<'a> {
         Ok(Self {
             token: tokenizer.next_token()?,
             tokenizer,
+            names: vec![]
         })
     }
 
     pub fn token(&self) -> &Token {
         &self.token
+    }
+
+    pub fn names(&self) -> &Vec<Ast> {
+      &self.names
     }
 
     pub fn next_token(&mut self) -> Result<()> {
@@ -61,17 +67,26 @@ impl<'a> Parser<'a> {
 
         let mut left = last.null_denotation(self)?;
 
+        if let AstKind::Name(_) = left.kind {
+          self.names.push(left.clone());
+        }
+
         while bp < self.token.left_binding_power() {
             last = self.token.clone();
             self.next_token()?;
             left = last.left_denotation(self, left)?;
+
+            if let AstKind::Name(_) = left.kind {
+              self.names.push(left.clone());
+            }
+
         }
 
         Ok(left)
     }
 }
 
-pub fn parse(source: &str) -> Result<Ast> {
+pub fn parse(source: &str) -> Result<(Ast, Vec<Ast>)> {
     let mut parser = Parser::new(source)?;
     let ast = parser.expression(0)?;
     if !matches!(parser.token().kind, TokenKind::End) {
@@ -80,7 +95,7 @@ pub fn parse(source: &str) -> Result<Ast> {
             parser.tokenizer.string_from_token(parser.token()),
         ));
     }
-    ast.process()
+    Ok((ast.process()?, parser.names))
 }
 
 #[cfg(test)]
